@@ -1,0 +1,296 @@
+border a(t = 0, 1) {
+  x = t;
+  y = 0;
+  label = 2;
+}
+
+border b(t = 0, 2) {
+  x = 1;
+  y = t;
+  label = 22;
+} // Door left frame
+border c(t = 1, 2) {
+  x = t;
+  y = 2;
+  label = 22;
+} // Door top frame
+border d(t = 2, 0) {
+  x = 2;
+  y = t;
+  label = 22;
+} // Door right frame
+
+border e(t = 2, 8) {
+  x = t;
+  y = 0;
+  label = 2;
+}
+
+border f(t = 0, 1.81) {
+  x = 8;
+  y = t;
+  label = 23;
+} // Person silouette
+border g(t = 8, 8.3) {
+  x = t;
+  y = 1.81;
+  label = 23;
+} // Person silouette
+border h(t = 1.81, 0) {
+  x = 8.3;
+  y = t;
+  label = 23;
+} // Person silouette
+
+border i(t = 8.3, 8.4) {
+  x = t;
+  y = 0;
+  label = 2;
+}
+
+border j(t = 0, 1.5) {
+  x = 8.4;
+  y = t;
+  label = 24;
+} // Desktop silouette
+border k(t = 8.4, 8.7) {
+  x = t;
+  y = 1.5;
+  label = 24;
+} // Desktop silouette
+border l(t = 1.5, 0) {
+  x = 8.7;
+  y = t;
+  label = 24;
+} // Desktop silouette
+
+border m(t = 8.7, 10) {
+  x = t;
+  y = 0;
+  label = 2;
+}
+
+border n1(t = 0, 3) {
+  x = 10;
+  y = t;
+  label = 24;
+} // Window
+border o(t = 10, 4) {
+  x = t;
+  y = 3;
+  label = 2;
+} // Ceiling
+
+border p1(t = 4, 3) {
+  x = t;
+  y = 3;
+  label = 1;
+}
+// inlet air  with parabolic profile
+
+border q1(t = 3, 0) {
+  x = t;
+  y = 3;
+  label = 2;
+}
+border r(t = 3, 0) {
+  x = 0;
+  y = t;
+  label = 2;
+}
+
+int n = 60;
+mesh Th = buildmesh(a(n) + b(n) + c(n) + d(n) + e(2 * n) + f(n) + g(n) + h(n) +
+                    i(n) + j(n) + k(n) + l(n) + m(n) + n1(n / 2) + o(2 * n) +
+                    p1(n) + q1(n) + r(n));
+plot(Th, wait = 1);
+
+//****************INICIO ALGORITMO DE CHORIN ****************
+
+fespace Vh(Th, P1);
+Vh w, u, v = 0, p = 0, q = 0;
+
+real nu = 0.000016; // air cinematic viscosity  m2/s for 30 C,
+
+real dt = 0.01; //
+
+real area = int2d(Th)(1.);
+
+real tmax1 = 5; // time end simulation
+real t;
+int iter;
+iter = 0;
+
+// **********************  Chorin-Rannacher algorithm to solve Navier Stokes
+// *****************************************
+real PI = 3.1416;
+
+for (t = 0; t < tmax1; t += dt) {
+  iter = iter + 1;
+  Vh uold = u, vold = v, pold = p;
+  Vh f = convect([ uold, vold ], -dt, uold),
+     g = convect([ uold, vold ], -dt, vold);
+
+  // CALCULA LA VELOCIDAD HORIZONTAL , w funcion test
+  solve pb4u(u, w, init = n, solver = LU) =
+      int2d(Th)(u * w / dt + nu * (dx(u) * dx(w) + dy(u) * dy(w))) -
+      int2d(Th)((f / dt - dx(p)) * w) + on(2, u = 0) + on(22, u = 0) +
+      on(23, u = 0) + on(24, u = 0) +
+      on(1, u = 6 * (x - 3) * (4 - x) * cos(PI / 4));
+
+  // calcular la velocidad vertical
+  solve pb4v(v, w, init = n, solver = LU) =
+      int2d(Th)(v * w / dt + nu * (dx(v) * dx(w) + dy(v) * dy(w))) -
+      int2d(Th)((g / dt - dy(p)) * w) +
+      on(1, v = -6 * (x - 3) * (4 - x) * sin(PI / 4)) + on(2, v = 0) +
+      on(22, v = 0) + on(23, v = 0) + on(24, v = 0);
+
+  real meandiv = int2d(Th)(dx(u) + dy(v)) / area;
+
+  // calcula la presion p, siendo q =-p
+  solve pb4p(q, w, init = n, solver = LU) =
+      int2d(Th)(dx(q) * dx(w) + dy(q) * dy(w)) -
+      int2d(Th)((dx(u) + dy(v) - meandiv) * w / dt) + on(2, q = 0);
+
+  real meanpq = int2d(Th)(pold - q) / area;
+
+  if (iter % 20) { // plotea cada 20 iteraciones
+    plot([ u, v ], cmm = " tiempo =" + t, value = 1);
+  }
+
+  p = pold - q - meanpq; // CALCULA DEFINITIVAMENTE LA PRESION
+  u = u + dx(q) * dt;    // CALCULA COMPONENTE HZTAL VELOCIDAD
+  v = v + dy(q) * dt;    // COMPONENTE VERTICAL VELOCIDAD
+}
+
+// ************************* end of Chorin algorithm
+// ************************************************************
+
+real tmax2 = 10;
+for (t = tmax1; t < tmax2; t += dt) {
+  iter = iter + 1;
+  Vh uold = u, vold = v, pold = p;
+  Vh f = convect([ uold, vold ], -dt, uold),
+     g = convect([ uold, vold ], -dt, vold);
+
+  solve pb4u(u, w, init = n, solver = LU) =
+      int2d(Th)(u * w / dt + nu * (dx(u) * dx(w) + dy(u) * dy(w))) -
+      int2d(Th)((f / dt - dx(p)) * w) + on(2, u = 0) + on(22, u = 0) +
+      on(23, u = 0) + on(24, u = 0) +
+      on(1, u = 6 * (x - 3) * (4 - x) * cos(PI / 4));
+
+  solve pb4v(v, w, init = n, solver = LU) =
+      int2d(Th)(v * w / dt + nu * (dx(v) * dx(w) + dy(v) * dy(w))) -
+      int2d(Th)((g / dt - dy(p)) * w) +
+      on(1, v = -6 * (x - 3) * (4 - x) * sin(PI / 4)) + on(2, v = 0) +
+      on(22, v = 0) + on(23, v = 0) + on(24, v = 0);
+
+  real meandiv = int2d(Th)(dx(u) + dy(v)) / area;
+
+  solve pb4p(q, w, init = n, solver = LU) =
+      int2d(Th)(dx(q) * dx(w) + dy(q) * dy(w)) -
+      int2d(Th)((dx(u) + dy(v) - meandiv) * w / dt) + on(2, q = 0);
+
+  real meanpq = int2d(Th)(pold - q) / area;
+
+  // plotea cada 20 iteraciones
+  if (iter % 20) {
+    plot([ u, v ], cmm = " tiempo =" + t, value = 1);
+  }
+
+  p = pold - q - meanpq;
+  u = u + dx(q) * dt;
+  v = v + dy(q) * dt;
+
+  // calculo temeperatura con radiacion
+
+  fespace Vh2(Th, P2);
+  Vh2 T, vv, B1, Told, Tc, error, Tpared, TIZDA, TDCHA;
+
+  real k;
+  real sigma = 5.6704 * 1e-8; // Constante de Stefan-Boltzmann [W/m2.K4]
+  real emisivity = 0.9;
+  real Tb = 37 + 273.15; // Temperatura del foco caliente [K] que es la
+                         // temperatura interior del body
+  real T0 =
+      20 +
+      273.15; // Condicion Dirichlet , temp impuesta en paredes que no son la de
+              // la pared izda ni entrada ni salida del aire ni body [K]
+
+  real W; // viento m/s
+  W = 6;
+  real he;
+  he = 5.7 + 3.8 * W; // coefte exterior en funcion del viento
+
+  // vv es funcion test elementos finitos
+
+  /* despreciamos la derivada parcial de temperatura respecto del tiempo para
+   * obtener mas rapidamente la solucion estacionaria */
+
+  problem calor(T, vv) =
+      int2d(Th)(u * dx(T) * vv + v * dy(T) * vv) +
+      int2d(Th)(k * dx(T) * dx(vv) + k * dy(T) * dy(vv)) +
+      int1d(Th, 22)(he * T * vv) -
+      int1d(Th, 22)(he * T0 * vv) // door - just convection
+      + int1d(Th, 23)(sigma * emisivity * B1 * T * vv) -
+      int1d(Th, 23)(sigma * emisivity * B1 * Tb * vv) // person - radiation
+      + int1d(Th, 24)(he * T * vv) -
+      int1d(Th, 24)(he * T0 * vv)          // desktop - convection
+      + on(2, T = T0) + on(1, T = 290.15); // AC (17C)
+
+  // Para la primera iteracion (aproximacion inicial)
+  Told = T0;
+
+  real ErrorL2 = 1.;
+  real ErrorH1 = 1.;
+
+  while (sqrt(ErrorL2 + ErrorH1) > 1.e-6)
+  // bucle por ser radiacion problema no lineal
+
+  {
+    // Conductividad t�rmica del aire
+    k = 0.02;
+    B1 = (Told ^ 2 + Tb ^ 2) * (Told + Tb);
+
+    calor;
+    Tc = T - 273.15; // temperatura en grados Celsius
+
+    if (iter % 10) { // plotea cada 20 iteraciones
+      plot(Tc, value = 1);
+    }
+
+    error = T - Told;
+    ErrorH1 = int2d(Th)(dx(error) ^ 2 + dy(error) ^ 2);
+    ErrorL2 = int2d(Th)(error ^ 2);
+    cout << " Error seminorma H1 = " << sqrt(ErrorH1) << endl;
+    cout << " Error L2 = " << sqrt(ErrorL2) << endl;
+    cout << " Error norma H1 = " << sqrt(ErrorL2 + ErrorH1) << endl;
+    Told = T;
+  }
+
+  x = 0.;
+
+  y = 1.;
+
+  Tpared = T(x, y) - 273.15; // temperatura en piel persona a 1m de altura ,
+                             // lado cuerpo a la izda
+
+  cout << " temperatura pared a la dcha = " << Tpared << endl;
+
+  x = 10.;
+
+  y = 1.;
+
+  TIZDA = T(x, y) - 273.15; // temperatura en piel persona a 1m de altura , lado
+                            // cuerpo a la izda
+
+  cout << " temperatura persona a la izda = " << TIZDA << endl;
+
+  x = 10.30;
+
+  y = 1.;
+  TDCHA = T(x, y) - 273.15;
+  // temperatura en piel persona a 1m de altura , lado cuerpo a la derecha
+
+  cout << " temperatura persona a la dcha = " << TDCHA << endl;
+}
