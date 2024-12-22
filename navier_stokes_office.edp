@@ -1,93 +1,106 @@
+// Definición de los bordes de la geometría (Despacho)
+
+// Suelo inicial
 border a(t = 0, 1) {
   x = t;
   y = 0;
   label = 2;
 }
 
+// Contorno puerta habitación
 border b(t = 0, 2) {
   x = 1;
   y = t;
   label = 22;
-} // Door left frame
+}
 border c(t = 1, 2) {
   x = t;
   y = 2;
   label = 22;
-} // Door top frame
+}
 border d(t = 2, 0) {
   x = 2;
   y = t;
   label = 22;
-} // Door right frame
+}
 
-border e(t = 2, 8) {
+// Suelo
+border e(t = 2, 6) {
   x = t;
   y = 0;
   label = 2;
 }
 
+// Silueta persona
 border f(t = 0, 1.81) {
-  x = 8;
+  x = 6;
   y = t;
   label = 23;
-} // Person silouette
-border g(t = 8, 8.3) {
+}
+border g(t = 6, 6.3) {
   x = t;
   y = 1.81;
   label = 23;
-} // Person silouette
+}
 border h(t = 1.81, 0) {
-  x = 8.3;
+  x = 6.3;
   y = t;
   label = 23;
-} // Person silouette
+}
 
-border i(t = 8.3, 8.4) {
+// Suelo
+border i(t = 6.3, 6.4) {
   x = t;
   y = 0;
   label = 2;
 }
 
-border j(t = 0, 1.5) {
-  x = 8.4;
+// Silueta escritorio y ordenador
+border j(t = 0, 1) {
+  x = 6.4;
   y = t;
   label = 24;
-} // Desktop silouette
-border k(t = 8.4, 8.7) {
+}
+border k(t = 6.4, 7.4) {
   x = t;
-  y = 1.5;
+  y = 1;
   label = 24;
-} // Desktop silouette
-border l(t = 1.5, 0) {
-  x = 8.7;
+}
+border l(t = 1, 0) {
+  x = 7.4;
   y = t;
   label = 24;
-} // Desktop silouette
+}
 
-border m(t = 8.7, 10) {
+// Suelo
+border m(t = 7.4, 8) {
   x = t;
   y = 0;
   label = 2;
 }
 
+// Pared derecha
 border n1(t = 0, 3) {
-  x = 10;
+  x = 8;
   y = t;
-  label = 24;
-} // Window
-border o(t = 10, 4) {
+  label = 2;
+}
+
+// Techo
+border o(t = 8, 4) {
   x = t;
   y = 3;
   label = 2;
-} // Ceiling
+}
 
+// Aire acondicionado con perfil parabólico
 border p1(t = 4, 3) {
   x = t;
   y = 3;
   label = 1;
 }
-// inlet air  with parabolic profile
 
+// Resto del techo y pared izquierda
 border q1(t = 3, 0) {
   x = t;
   y = 3;
@@ -99,30 +112,28 @@ border r(t = 3, 0) {
   label = 2;
 }
 
-int n = 60;
+// Definición de la malla
+int n = 60; // Número de elementos por borde
 mesh Th = buildmesh(a(n) + b(n) + c(n) + d(n) + e(2 * n) + f(n) + g(n) + h(n) +
                     i(n) + j(n) + k(n) + l(n) + m(n) + n1(n / 2) + o(2 * n) +
                     p1(n) + q1(n) + r(n));
 plot(Th, wait = 1);
 
-//****************INICIO ALGORITMO DE CHORIN ****************
+// Espacios de elementos finitos y variables
+fespace Vh(Th, P1); // Espacio para velocidad y presión
+Vh w, u, v = 0, p = 0, q = 0; // w: función test, u,v: velocidades, p: presión, q: presión auxiliar
 
-fespace Vh(Th, P1);
-Vh w, u, v = 0, p = 0, q = 0;
-
-real nu = 0.000016; // air cinematic viscosity  m2/s for 30 C,
-
-real dt = 0.01; //
-
+// Parámetros físicos
+real nu = 0.000016; // Viscosidad cinemática del aire a 30°C [m²/s]
+real dt = 0.01;     // Paso del tiempo
 real area = int2d(Th)(1.);
 
-real tmax1 = 5; // time end simulation
+real tmax1 = 5;     // Tiempo final primera fase
 real t;
 int iter;
 iter = 0;
 
-// **********************  Chorin-Rannacher algorithm to solve Navier Stokes
-// *****************************************
+// Primera fase del algoritmo de Chorin
 real PI = 3.1416;
 
 for (t = 0; t < tmax1; t += dt) {
@@ -154,18 +165,16 @@ for (t = 0; t < tmax1; t += dt) {
 
   real meanpq = int2d(Th)(pold - q) / area;
 
-  if (iter % 20) { // plotea cada 20 iteraciones
+  if (iter % 20) { // Ploteamos cada 20 iteraciones
     plot([ u, v ], cmm = " tiempo =" + t, value = 1);
   }
 
-  p = pold - q - meanpq; // CALCULA DEFINITIVAMENTE LA PRESION
-  u = u + dx(q) * dt;    // CALCULA COMPONENTE HZTAL VELOCIDAD
-  v = v + dy(q) * dt;    // COMPONENTE VERTICAL VELOCIDAD
+  p = pold - q - meanpq; // Cálculo definitivamente la presión
+  u = u + dx(q) * dt;    // Cálculo componente horizontal velocidad
+  v = v + dy(q) * dt;    // Cálculo componente vertical velocidad
 }
 
-// ************************* end of Chorin algorithm
-// ************************************************************
-
+// Segunda fase de simulación (tmax1 hasta tmax2)
 real tmax2 = 10;
 for (t = tmax1; t < tmax2; t += dt) {
   iter = iter + 1;
@@ -193,7 +202,7 @@ for (t = tmax1; t < tmax2; t += dt) {
 
   real meanpq = int2d(Th)(pold - q) / area;
 
-  // plotea cada 20 iteraciones
+  // Ploteamos cada 20 iteraciones
   if (iter % 20) {
     plot([ u, v ], cmm = " tiempo =" + t, value = 1);
   }
@@ -205,22 +214,21 @@ for (t = tmax1; t < tmax2; t += dt) {
   // calculo temeperatura con radiacion
 
   fespace Vh2(Th, P2);
-  Vh2 T, vv, B1, Told, Tc, error, Tpared, TIZDA, TDCHA;
+  Vh2 T, vv, B1, B2, Told, Tc, error, Tpared, TIZDA, TDCHA;
 
   real k;
   real sigma = 5.6704 * 1e-8; // Constante de Stefan-Boltzmann [W/m2.K4]
   real emisivity = 0.9;
-  real Tb = 37 + 273.15; // Temperatura del foco caliente [K] que es la
-                         // temperatura interior del body
-  real T0 =
-      20 +
-      273.15; // Condicion Dirichlet , temp impuesta en paredes que no son la de
-              // la pared izda ni entrada ni salida del aire ni body [K]
+  real Tb = 37 + 273.15;  // Temperatura del foco caliente [K] que es la
+                          // temperatura interior del cuerpo
+  real T0 = 20 + 273.15;  // Condicion Dirichlet, temp. impuesta en paredes que no son la de
+                          // la pared izda ni entrada ni salida del aire ni body [K]
+  real Tdesk = 35 + 273.15; // Temperatura del escritorio/PC en Kelvin (35°C)
 
-  real W; // viento m/s
+  real W; // Flujo aire m/s
   W = 6;
   real he;
-  he = 5.7 + 3.8 * W; // coefte exterior en funcion del viento
+  he = 5.7 + 3.8 * W; // Coeficiente exterior en funcion del viento
 
   // vv es funcion test elementos finitos
 
@@ -228,14 +236,14 @@ for (t = tmax1; t < tmax2; t += dt) {
    * obtener mas rapidamente la solucion estacionaria */
 
   problem calor(T, vv) =
-      int2d(Th)(u * dx(T) * vv + v * dy(T) * vv) +
-      int2d(Th)(k * dx(T) * dx(vv) + k * dy(T) * dy(vv)) +
-      int1d(Th, 22)(he * T * vv) -
-      int1d(Th, 22)(he * T0 * vv) // door - just convection
-      + int1d(Th, 23)(sigma * emisivity * B1 * T * vv) -
-      int1d(Th, 23)(sigma * emisivity * B1 * Tb * vv) // person - radiation
-      + int1d(Th, 24)(he * T * vv) -
-      int1d(Th, 24)(he * T0 * vv)          // desktop - convection
+      int2d(Th)(u * dx(T) * vv + v * dy(T) * vv)
+      + int2d(Th)(k * dx(T) * dx(vv) + k * dy(T) * dy(vv)) 
+      + int1d(Th, 22)(he * T * vv)
+      - int1d(Th, 22)(he * T0 * vv)                     // Puerta - convección
+      + int1d(Th, 23)(sigma * emisivity * B1 * T * vv)
+      - int1d(Th, 23)(sigma * emisivity * B1 * Tb * vv) // Persona - radiación
+      + int1d(Th, 24)(sigma * emisivity * B2 * T * vv + he * T * vv)
+      - int1d(Th, 24)(sigma * emisivity * B2 * Tdesk * vv + he * T0 * vv) // Escritorio/PC - radiación
       + on(2, T = T0) + on(1, T = 290.15); // AC (17C)
 
   // Para la primera iteracion (aproximacion inicial)
@@ -244,18 +252,24 @@ for (t = tmax1; t < tmax2; t += dt) {
   real ErrorL2 = 1.;
   real ErrorH1 = 1.;
 
-  while (sqrt(ErrorL2 + ErrorH1) > 1.e-6)
   // bucle por ser radiacion problema no lineal
-
-  {
-    // Conductividad t�rmica del aire
+  while (sqrt(ErrorL2 + ErrorH1) > 1.e-6) {
+    // Conductividad térmica del aire
     k = 0.02;
+
+    // Para la radiación del cuerpo
     B1 = (Told ^ 2 + Tb ^ 2) * (Told + Tb);
 
-    calor;
-    Tc = T - 273.15; // temperatura en grados Celsius
+    // Para la radiación del escritorio/PC
+    B2 = (Told ^ 2 + Tdesk ^ 2) * (Told + Tdesk);
 
-    if (iter % 10) { // plotea cada 20 iteraciones
+    calor;
+    
+    // Temperatura en grados Celsius 
+    Tc = T - 273.15;
+
+    // Ploteamos cada 10 iteraciones
+    if (iter % 10) {
       plot(Tc, value = 1);
     }
 
@@ -269,28 +283,26 @@ for (t = tmax1; t < tmax2; t += dt) {
   }
 
   x = 0.;
-
   y = 1.;
+  Tpared = T(x, y) - 273.15;
+  cout << " Temperatura pared izda = " << Tpared << endl;
 
-  Tpared = T(x, y) - 273.15; // temperatura en piel persona a 1m de altura ,
-                             // lado cuerpo a la izda
+  x = 0.;
+  y = 8.;
+  Tpared = T(x, y) - 273.15;
+  cout << " Temperatura pared dcha = " << Tpared << endl;
 
-  cout << " temperatura pared a la dcha = " << Tpared << endl;
-
-  x = 10.;
-
+  // Temperatura en la piel de la persona, a 1 metro de altura
+  // (lado izquierdo)
+  x = 6.;
   y = 1.;
+  TIZDA = T(x, y) - 273.15;
+  cout << " Temperatura persona a la izda = " << TIZDA << endl;
 
-  TIZDA = T(x, y) - 273.15; // temperatura en piel persona a 1m de altura , lado
-                            // cuerpo a la izda
-
-  cout << " temperatura persona a la izda = " << TIZDA << endl;
-
-  x = 10.30;
-
+  // Temperatura en la piel de la persona, a 1 metro de altura
+  // (lado derecho)
+  x = 6.3;
   y = 1.;
   TDCHA = T(x, y) - 273.15;
-  // temperatura en piel persona a 1m de altura , lado cuerpo a la derecha
-
-  cout << " temperatura persona a la dcha = " << TDCHA << endl;
+  cout << " Temperatura persona a la dcha = " << TDCHA << endl;
 }
